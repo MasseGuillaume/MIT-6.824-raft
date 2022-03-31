@@ -1,11 +1,6 @@
 ThisBuild / scalaVersion := "3.1.1"
 
-
-lazy val root = project.in(file("."))
-  .dependsOn(labrpc)
-  .aggregate(labrpc)
-
-lazy val labrpc = project.settings(
+lazy val zioSettings: Seq[Def.Setting[_]] = Seq(
   libraryDependencies ++= {
     val zioVersion = "2.0.0-RC3"
     Seq(
@@ -18,5 +13,9 @@ lazy val labrpc = project.settings(
 )
 
 
-// bugio
-// mico
+lazy val root = project.in(file("."))
+  .dependsOn(mico, tatu)
+  .aggregate(mico, tatu)
+
+lazy val mico = project.settings(zioSettings)
+lazy val tatu = project.settings(zioSettings)
