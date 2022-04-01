@@ -13,7 +13,12 @@ extension [E, S, I, O](model: Model[E, S, I, O]) {
     timeout: Option[Duration] = None,
     verbosity: Verbosity = Verbosity.Error
   ): (CheckResult, LinearizationInfo[I | O]) = {
-    ???
+    val partitions =
+      model.partitionOperations(history).map(
+        Entry.fromOperations
+      )
+
+    checkParallel(partitions, timeout, verbosity)
   }
 
   def checkEvents(
@@ -21,14 +26,12 @@ extension [E, S, I, O](model: Model[E, S, I, O]) {
     timeout: Option[Duration] = None,
     verbosity: Verbosity = Verbosity.Error
   ): (CheckResult, LinearizationInfo[E]) = {
-    // val partitions = 
-    //   model.partitionEvents(history).map(events =>
-    //     renumber(events).map(_.map(Entry.apply))
-    //   )
+    val partitions = 
+      model.partitionEvents(history).map(events =>
+        Entry.fromEvents(renumber(events))
+      )
 
-
-    // checkParallel(model, )
-    ???
+    checkParallel(partitions, timeout, verbosity)
   }
 
   private def checkParallel[T](
@@ -45,10 +48,20 @@ extension [E, S, I, O](model: Model[E, S, I, O]) {
 }
 
 def renumber[T](events: List[Event[T]]): List[Event[T]] = {
-  ???
+  val renumbering = collection.mutable.Map.empty[Int, Int]
+  var id = 0
+
+  events.map{ event =>
+    event.copy(id = 
+      renumbering.getOrElse(event.id, {
+        val i = id
+        renumbering(event.id) = id
+        id += 1
+        i
+      })
+    )
+  }
 }
-
-
 
 enum EntryKind:
   case Call

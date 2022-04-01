@@ -1,7 +1,5 @@
 package tatu
 
-import zio.Duration
-
 opaque type Time = Long
 def fromLong(value: Long): Time = value
 def toLong(time: Time): Long = time
@@ -35,10 +33,10 @@ trait Eq[T]:
 
 case class Model[E, S, I, O](
   partitionOperations: List[Operation[I, O]] => List[List[Operation[I, O]]],
-  partitionEvents: List[Event[E]] => List[List[E]],
+  partitionEvents: List[Event[E]] => List[List[Event[E]]],
   initial: () => S,
   step: (S, I, O) => (Boolean, S),
-)(using Show[O], Show[S], Eq[S])
+)(using Eq[S]) // TODO figure out what we need to show: Show[O], Show[S] 
 
 def noPartition[I, O](history: List[Operation[I, O]]): List[List[Operation[I, O]]] = 
   List(history)
