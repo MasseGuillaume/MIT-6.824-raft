@@ -9,16 +9,30 @@ object EntryLinkedListTest extends DefaultRunnableSpec {
 
   
 
-  val entries = Entry.fromOperations(history) 
+  val entries = Entry.fromOperations(history)
+  // println()
+  // println()
+  // println("---")
+  // println()
+  // println()
   // entries.foreach(println)
-
-
-
-  
-
+  // println()
+  // println()
+  // println("---")
+  // println()
+  // println()
   // println(EntryLinkedList(entries))
+  // println()
+  // println()
+
+
+  // val list = EntryLinkedList(0, 0)
 
   def spec = suite("EntryLinkedList")(
+    test("insertBefore")(
+      assert(1)(equalTo(1))
+    ),
+
     // test("toString")(
     //   assert(EntryLinkedList(entries))(equalTo(
     //     """|EntryLinkedList(
@@ -43,9 +57,7 @@ object EntryLinkedListTest extends DefaultRunnableSpec {
     // test("length")(
     //   assert(1)(equalTo(1))
     // ),
-    // test("insertBefore")(
-    //   assert(1)(equalTo(1))
-    // ),
+    
     // test("lift")(
     //   assert(1)(equalTo(1))
     // ),

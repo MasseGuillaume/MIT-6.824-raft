@@ -2,38 +2,42 @@ package porcEpic
 
 import scala.collection.mutable.StringBuilder
 
+type EntryLinkedList[T] = DoubleLinkedList[EntryNode[T]]
+
 object EntryLinkedList {
-  def apply[T](entries: List[Entry[T]]): EntryLinkedList[T] = {
-    var root: EntryLinkedList[T] = null
-    val matches = collection.mutable.Map.empty[Int, EntryLinkedList[T]]
+  def apply[T](entries: List[Entry[T]]): DoubleLinkedList[EntryNode[T]] = {
+    var root: DoubleLinkedList[EntryNode[T]] = null
+    val matches = collection.mutable.Map.empty[Int, DoubleLinkedList[EntryNode[T]]]
 
     entries.reverse.foreach{ elem => 
       val entry = 
         elem.kind match {
           case EntryKind.Call => 
-            val entry = EntryLinkedList(elem.value, elem.id, null)
+            val entry = DoubleLinkedList(EntryNode(elem.value, elem.id))
             matches(elem.id) = entry
             entry
             
           case EntryKind.Return =>
-            EntryLinkedList(elem.value, elem.id, matches.getOrElse(elem.id, null))
+            DoubleLinkedList(EntryNode(elem.value, elem.id, matches.getOrElse(elem.id, null)))
         }
 
       entry.insertBefore(root)
       root = entry
+
+      println(matches)
+      println(root)
     }
 
     root
   }
 }
 
-case class EntryLinkedList[T](
-  value: T,
-  id: Int,
-  matches: EntryLinkedList[T], // if it's a call it points to the return entry
-  var next: EntryLinkedList[T] = null,
-  var prev: EntryLinkedList[T] = null
+class DoubleLinkedList[T](
+  val elem: T, 
+  var prev: DoubleLinkedList[T] = null,
+  var next: DoubleLinkedList[T] = null
 ) {
+
   def length: Int = {
     var l = 1
     var n = this
@@ -44,7 +48,7 @@ case class EntryLinkedList[T](
     l
   }
 
-  def insertBefore(mark: EntryLinkedList[T]): EntryLinkedList[T] = {
+  def insertBefore(mark: DoubleLinkedList[T]): this.type = {
     if (mark != null) {
       val beforeMark = mark.prev
       mark.prev = this
@@ -56,26 +60,42 @@ case class EntryLinkedList[T](
     }
     this
   }
+}
+
+/**
+ * @param matches:  if it's a call it points to the return entry
+ */
+case class EntryNode[T](
+  value: T,
+  id: Int,
+  matches: DoubleLinkedList[EntryNode[T]] = null
+)
+
+extension [T](list: DoubleLinkedList[EntryNode[T]]) {
 
   def lift(): Unit = {
+    import list._
     prev.next = next
     next.prev = prev
-    matches.prev.next = matches.next
-    if (matches.next != null) {
-      matches.next.prev = matches.prev
+    elem.matches.prev.next = elem.matches.next
+    if (elem.matches.next != null) {
+      elem.matches.next.prev = elem.matches.prev
     }
   }
 
   def unlift(): Unit = {
-    matches.prev.next = matches
-    if (matches.next != null) {
-      matches.next.prev = matches
+    import list._
+    elem.matches.prev.next = elem.matches
+    if (elem.matches.next != null) {
+      elem.matches.next.prev = elem.matches
     }
-    prev.next = this
-    next.prev = this
+    prev.next = list
+    next.prev = list
   }
 
-  override def toString: String = {
+  def show: String = {
+    import list._
+
     val builder = new StringBuilder("EntryLinkedList(\n")
 
     if (prev != null) {
@@ -84,28 +104,23 @@ case class EntryLinkedList[T](
       builder ++= "  ∅,\n"
     }
 
-    def show(that: EntryLinkedList[T]): Unit = {
-      builder ++= s"  ($id)["
+    def show(that: DoubleLinkedList[EntryNode[T]]): Unit = {
+      builder ++= s"  (${elem.id})["
       builder ++= "value = "
-      if (that.value != null) {
-        builder ++ that.value.toString
+      if (that.elem.value != null) {
+        builder ++= that.elem.value.toString
       } else {
         builder ++= "∅"
       }
 
-      builder ++= ", "
-
-      builder ++= "matches = "
-      if (that.matches != null) {
-        builder ++= that.matches.id.toString
-      } else {
-        builder ++= "∅"
+      if (that.elem.matches != null) {
+        builder ++= ", matches = " + that.elem.matches.elem.id.toString
       }
 
       builder ++= "],\n"
     }
 
-    var current = this
+    var current = list
     show(current)
     while (current.next != null) {
       current = current.next

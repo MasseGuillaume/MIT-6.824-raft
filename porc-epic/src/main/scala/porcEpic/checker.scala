@@ -67,7 +67,12 @@ extension [E, S, I, O](model: Model[E, S, I, O]) {
     var state = model.initial()
     
     // todo: wtf ?
-    val bogus = EntryLinkedList[T](null.asInstanceOf[T], -1, null.asInstanceOf[EntryLinkedList[T]])
+    val bogus = DoubleLinkedList[EntryNode[T]](
+      elem = EntryNode[T](
+        value = null.asInstanceOf[T],
+        id = -1
+      )
+    )
 
     val headEntry = entry.insertBefore(bogus)
 
