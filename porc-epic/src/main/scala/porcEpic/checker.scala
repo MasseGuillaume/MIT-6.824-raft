@@ -1,6 +1,7 @@
-package tatu
+package porcEpic
 
-import zio.Duration
+import zio._
+import scala.collection.mutable.{BitSet => MBitset, Map => MMap}
 
 enum Verbosity:
   case Debug
@@ -12,7 +13,7 @@ extension [E, S, I, O](model: Model[E, S, I, O]) {
     history: List[Operation[I, O]],
     timeout: Option[Duration] = None,
     verbosity: Verbosity = Verbosity.Error
-  ): (CheckResult, LinearizationInfo[I | O]) = {
+  ): UIO[(CheckResult, LinearizationInfo[I | O])] = {
     val partitions =
       model.partitionOperations(history).map(
         Entry.fromOperations
@@ -25,7 +26,7 @@ extension [E, S, I, O](model: Model[E, S, I, O]) {
     history: List[Event[E]],
     timeout: Option[Duration] = None,
     verbosity: Verbosity = Verbosity.Error
-  ): (CheckResult, LinearizationInfo[E]) = {
+  ): UIO[(CheckResult, LinearizationInfo[E])] = {
     val partitions = 
       model.partitionEvents(history).map(events =>
         Entry.fromEvents(renumber(events))
@@ -38,17 +39,58 @@ extension [E, S, I, O](model: Model[E, S, I, O]) {
     history: List[List[Entry[T]]],
     timeout: Option[Duration],
     verbosity: Verbosity
-  ): (CheckResult, LinearizationInfo[T]) = {
+  ): UIO[(CheckResult, LinearizationInfo[T])] = {
+    // ZIO
     ???
   }
 
-  private def checkSingle[T](history: List[Entry[T]]): Boolean = {
+  private def checkSingle[T](history: List[Entry[T]]): (Boolean, Array[Array[Int]]) = {
+    case class CacheEntry(
+      linearized: MBitset,
+      state: S
+    )
+
+    case class CallEntry[T](
+      entry: EntryLinkedList[T],
+      state: S
+    )
+    // def cacheContains()
+
+    val entry = EntryLinkedList(history)
+    val n = entry.length / 2
+    val linearized = MBitset.newBuilder.sizeHint(n)
+    val cache = MMap.empty[Int, CacheEntry]
+    val longest = Array.ofDim[Array[Int]](n)
+
+
+    var calls = List.empty[CallEntry[T]]
+    var state = model.initial()
+    
+    // todo: wtf ?
+    val bogus = EntryLinkedList[T](null.asInstanceOf[T], -1, null.asInstanceOf[EntryLinkedList[T]])
+
+    val headEntry = entry.insertBefore(bogus)
+
+    // while (headEntry.next != null) {
+    //   // check kill switch
+
+    //   if (entry.matches != null) {
+    //     val matching = entry.matches
+    //     // val (ok, newState) = model.step(state, entry.value, matching.value)
+    //     // if (ok) {
+    //     //   val newLinearized = linearized.clone().set(uint(entry.id))
+    //     // } else {
+    //     // }
+    //   } else {
+    //   }
+    // }
+
     ???
   }
 }
 
 def renumber[T](events: List[Event[T]]): List[Event[T]] = {
-  val renumbering = collection.mutable.Map.empty[Int, Int]
+  val renumbering = MMap.empty[Int, Int]
   var id = 0
 
   events.map{ event =>

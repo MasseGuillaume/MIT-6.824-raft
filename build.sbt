@@ -14,8 +14,8 @@ lazy val zioSettings: Seq[Def.Setting[_]] = Seq(
 
 
 lazy val root = project.in(file("."))
-  .dependsOn(mico, tatu)
-  .aggregate(mico, tatu)
+  .dependsOn(`porc-epic`)
+  .aggregate(`porc-epic`)
 
-lazy val mico = project.settings(zioSettings)
-lazy val tatu = project.settings(zioSettings)
+// lazy val mico = project.settings(zioSettings)
+lazy val `porc-epic` = project.settings(zioSettings)

@@ -1,8 +1,8 @@
 package mico
 
-opaque type Address = String
+// opaque type Address = String
 
-case class Initialization(
-  peers: List[Address],
+// case class Initialization(
+//   peers: List[Address],
   
-)
+// )

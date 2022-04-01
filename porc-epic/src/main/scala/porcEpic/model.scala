@@ -1,10 +1,11 @@
-package tatu
+package porcEpic
 
 opaque type Time = Long
 def fromLong(value: Long): Time = value
 def toLong(time: Time): Long = time
 
 opaque type ClientId = Int
+def cid(value: Int): ClientId = value
 
 case class Operation[I, O](
   clientId: ClientId,
@@ -48,4 +49,3 @@ enum CheckResult:
   case Unknown
   case Ok
   case Illgal
-
