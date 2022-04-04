@@ -12,23 +12,28 @@ object EntryLinkedList {
     entries.reverse.foreach{ elem => 
       val entry = 
         elem.kind match {
-          case EntryKind.Call => 
+          case EntryKind.Return => 
             val entry = DoubleLinkedList(EntryNode(elem.value, elem.id))
             matches(elem.id) = entry
             entry
             
-          case EntryKind.Return =>
+          case EntryKind.Call =>
             DoubleLinkedList(EntryNode(elem.value, elem.id, matches.getOrElse(elem.id, null)))
         }
 
       entry.insertBefore(root)
       root = entry
-
-      println(matches)
-      println(root)
     }
 
     root
+  }
+}
+
+object DoubleLinkedList {
+  def apply[T](xs: T*): DoubleLinkedList[T] = {
+    xs.reverse.foldLeft(null: DoubleLinkedList[T])((acc, x) =>
+      (new DoubleLinkedList(x)).insertBefore(acc)
+    )
   }
 }
 
@@ -60,6 +65,28 @@ class DoubleLinkedList[T](
     }
     this
   }
+
+  override def toString: String = {
+    val builder = new StringBuilder("DoubleLinkedList(\n")
+
+    if (prev != null) {
+      builder ++= "  ...,\n"
+    } else {
+    }
+
+    def show(that: DoubleLinkedList[T]): Unit = {
+      builder ++= s"  ${that.elem.toString},\n"
+    }
+
+    var current = this
+    show(current)
+    while (current.next != null) {
+      current = current.next
+      show(current)
+    }
+    builder ++= ")"
+    builder.toString
+  }
 }
 
 /**
@@ -69,7 +96,24 @@ case class EntryNode[T](
   value: T,
   id: Int,
   matches: DoubleLinkedList[EntryNode[T]] = null
-)
+) {
+  override def toString: String = {
+    val builder = new StringBuilder()
+    builder ++= s"  ($id)["
+    builder ++= "value = "
+    if (value != null) {
+      builder ++= value.toString
+    } else {
+      builder ++= "∅"
+    }
+    if (matches != null) {
+      builder ++= ", matches = " + matches.elem.id.toString
+    }
+    builder ++= "]"
+
+    builder.toString
+  }
+}
 
 extension [T](list: DoubleLinkedList[EntryNode[T]]) {
 
@@ -91,45 +135,5 @@ extension [T](list: DoubleLinkedList[EntryNode[T]]) {
     }
     prev.next = list
     next.prev = list
-  }
-
-  def show: String = {
-    import list._
-
-    val builder = new StringBuilder("EntryLinkedList(\n")
-
-    if (prev != null) {
-      builder ++= "  ...,\n"
-    } else {
-      builder ++= "  ∅,\n"
-    }
-
-    def show(that: DoubleLinkedList[EntryNode[T]]): Unit = {
-      builder ++= s"  (${elem.id})["
-      builder ++= "value = "
-      if (that.elem.value != null) {
-        builder ++= that.elem.value.toString
-      } else {
-        builder ++= "∅"
-      }
-
-      if (that.elem.matches != null) {
-        builder ++= ", matches = " + that.elem.matches.elem.id.toString
-      }
-
-      builder ++= "],\n"
-    }
-
-    var current = list
-    show(current)
-    while (current.next != null) {
-      current = current.next
-      show(current)
-    }
-    
-
-    builder ++= "  ∅\n)"
-    
-    builder.toString
   }
 }

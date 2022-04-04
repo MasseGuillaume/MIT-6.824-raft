@@ -68,7 +68,7 @@ extension [E, S, I, O](model: Model[E, S, I, O]) {
     
     // todo: wtf ?
     val bogus = DoubleLinkedList[EntryNode[T]](
-      elem = EntryNode[T](
+      EntryNode[T](
         value = null.asInstanceOf[T],
         id = -1
       )
