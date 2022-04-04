@@ -7,11 +7,11 @@ def toLong(time: Time): Long = time
 opaque type ClientId = Int
 def cid(value: Int): ClientId = value
 
-case class Operation[I, O](
+case class Operation[T](
   clientId: ClientId,
-  input: I,
+  input: T,
   invocation: Time,
-  output: O,
+  output: T,
   response: Time
 )
 
@@ -30,19 +30,29 @@ trait Show[T]:
   def show: String
 
 trait Eq[T]:
-  def eq(a: T, b: T): Boolean
+  def equal(a: T, b: T): Boolean
 
-case class Model[E, S, I, O](
-  partitionOperations: List[Operation[I, O]] => List[List[Operation[I, O]]],
-  partitionEvents: List[Event[E]] => List[List[Event[E]]],
-  initial: () => S,
-  step: (S, I, O) => (Boolean, S),
-)(using Eq[S]) // TODO figure out what we need to show: Show[O], Show[S] 
+extension [T](a: T)(using e: Eq[T])
+  def equal(b: T): Boolean = e.equal(a, b)
 
-def noPartition[I, O](history: List[Operation[I, O]]): List[List[Operation[I, O]]] = 
+class Model[S, T](using Eq[S], Show[T]){
+  def partitionOperations: List[Operation[T]] => List[List[Operation[T]]] =
+    noPartitionOperation
+
+  def partitionEvents: List[Event[T]] => List[List[Event[T]]] =
+    noPartitionEvents
+
+  def initial: S
+
+  def step(state: S, input: T, output: S): (Boolean, S)
+
+  def describeOperation(input: T, output: S): String
+}
+
+def noPartitionOperation[T](history: List[Operation[T]]): List[List[Operation[T]]] = 
   List(history)
 
-def noPartitionEvent[E](history: List[Event[E]]): List[List[Event[E]]] = 
+def noPartitionEvents[T](history: List[Event[T]]): List[List[Event[T]]] = 
   List(history)
 
 enum CheckResult:

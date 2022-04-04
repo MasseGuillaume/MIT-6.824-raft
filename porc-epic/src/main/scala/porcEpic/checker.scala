@@ -7,13 +7,13 @@ enum Verbosity:
   case Debug
   case Error
 
-extension [E, S, I, O](model: Model[E, S, I, O]) {
+extension [S, T](model: Model[S, T])(using eq: Eq[S]) {
 
   def checkOperations(
-    history: List[Operation[I, O]],
+    history: List[Operation[T]],
     timeout: Option[Duration] = None,
     verbosity: Verbosity = Verbosity.Error
-  ): UIO[(CheckResult, LinearizationInfo[I | O])] = {
+  ): (CheckResult, LinearizationInfo[T]) = {
     val partitions =
       model.partitionOperations(history).map(
         Entry.fromOperations
@@ -23,10 +23,10 @@ extension [E, S, I, O](model: Model[E, S, I, O]) {
   }
 
   def checkEvents(
-    history: List[Event[E]],
+    history: List[Event[T]],
     timeout: Option[Duration] = None,
     verbosity: Verbosity = Verbosity.Error
-  ): UIO[(CheckResult, LinearizationInfo[E])] = {
+  ): (CheckResult, LinearizationInfo[T]) = {
     val partitions = 
       model.partitionEvents(history).map(events =>
         Entry.fromEvents(renumber(events))
@@ -35,16 +35,21 @@ extension [E, S, I, O](model: Model[E, S, I, O]) {
     checkParallel(partitions, timeout, verbosity)
   }
 
-  private def checkParallel[T](
+  private def checkParallel(
     history: List[List[Entry[T]]],
     timeout: Option[Duration],
     verbosity: Verbosity
-  ): UIO[(CheckResult, LinearizationInfo[T])] = {
-    // ZIO
-    ???
+  ): (CheckResult, LinearizationInfo[T]) = {
+    val (ok, l) = checkSingle(history.head)
+    
+    val result = 
+      if (ok) CheckResult.Ok
+      else CheckResult.Illgal
+
+    (result, null)
   }
 
-  private def checkSingle[T](history: List[Entry[T]]): (Boolean, Array[Array[Int]]) = {
+  private def checkSingle(history: List[Entry[T]]): (Boolean, Array[Array[Int]]) = {
     case class CacheEntry(
       linearized: MBitset,
       state: S
@@ -54,43 +59,98 @@ extension [E, S, I, O](model: Model[E, S, I, O]) {
       entry: EntryLinkedList[T],
       state: S
     )
-    // def cacheContains()
 
-    val entry = EntryLinkedList(history)
+    extension (bitset: MBitset) {
+      def set(v: Int): MBitset = bitset += v
+      def clear(v: Int): MBitset = bitset -= v
+    }
+    
+    var entry = EntryLinkedList(history)
     val n = entry.length / 2
-    val linearized = MBitset.newBuilder.sizeHint(n)
-    val cache = MMap.empty[Int, CacheEntry]
-    val longest = Array.ofDim[Array[Int]](n)
+    val linearized = MBitset.fromBitMaskNoCopy(Array.ofDim(n))
+    val cache = MMap.empty[Int, List[CacheEntry]].withDefaultValue(Nil)
 
+    def cacheContains(entry: CacheEntry): Boolean = {
+      cache.getOrElse(entry.linearized.hashCode, Nil).exists( elem =>
+        entry.linearized == elem.linearized && 
+          entry.state.equal(elem.state)
+      )
+    }
 
     var calls = List.empty[CallEntry[T]]
+    val longest = Array.ofDim[Array[Int]](n)
     var state = model.initial()
-    
-    // todo: wtf ?
+        
     val bogus = DoubleLinkedList[EntryNode[T]](
       EntryNode[T](
         value = null.asInstanceOf[T],
         id = -1
       )
     )
-
     val headEntry = entry.insertBefore(bogus)
 
-    // while (headEntry.next != null) {
-    //   // check kill switch
+    while (headEntry.next != null) {
+      if (entry.elem.matches != null) {
+        val matching = entry.elem.matches
+        val (ok, newState) = model.step(state, entry.elem.value, matching.elem.value)
+        if (ok) {
+          val newLinearized = linearized.clone().set(entry.elem.id)
+          val newCacheEntry = CacheEntry(newLinearized, newState)
+          if (!cacheContains(newCacheEntry)) {
+            val hash = newLinearized.hashCode
+            cache(hash) = newCacheEntry :: cache(hash)
+            calls = CallEntry(entry, state) :: calls
+            state = newState
+            linearized.set(entry.elem.id)
+            entry.lift()
+            entry = headEntry.next
+          } else {
+            entry = entry.next
+          }
+        } else {
+          entry = entry.next
+        }
+      } else {
+        val callsLength = calls.length
+        if (callsLength == 0) {
+          return (false, longest)
+        }
+        var seq: Array[Int] = null
+        calls.reverse.foreach { v =>
+          if (longest(v.entry.elem.id) == null || callsLength > longest(v.entry.elem.id).length) {
+            if (seq == null) {
+              seq = Array.ofDim(callsLength)
+              calls.reverse.zipWithIndex.foreach{(c, i) =>
+                seq(i) = v.entry.elem.id
+              }
+            }
+            longest(v.entry.elem.id) = seq
+          }
+        }
+        val callTop = calls.head
+        entry = callTop.entry
+        val state = callTop.state
+        linearized.clear(entry.elem.id)
+        calls = calls.tail
+        entry.unlift()
+        entry = entry.next
+      }
+    } // while
 
-    //   if (entry.matches != null) {
-    //     val matching = entry.matches
-    //     // val (ok, newState) = model.step(state, entry.value, matching.value)
-    //     // if (ok) {
-    //     //   val newLinearized = linearized.clone().set(uint(entry.id))
-    //     // } else {
-    //     // }
-    //   } else {
-    //   }
-    // }
+    val seq = Array.ofDim[Int](calls.length)
+    calls.zipWithIndex.reverse.foreach{  (v, i) =>
+      seq(i) = v.entry.elem.id
+    }
 
-    ???
+    {
+      var i = 0
+      while(i < n) {
+        longest(i) = seq
+        i += 1
+      }
+    }
+
+    (true, longest)
   }
 }
 
@@ -138,7 +198,7 @@ given EntryKindOredring: Ordering[EntryKind] with
 
 object Entry {
 
-  def fromEvents[E](events: List[Event[E]]): List[Entry[E]] = {
+  def fromEvents[T](events: List[Event[T]]): List[Entry[T]] = {
     events.map{ event =>
       val entryKind = 
         event.kind match {
@@ -156,9 +216,9 @@ object Entry {
     }
   }
 
-  def fromOperations[I, O](history: List[Operation[I, O]]): List[Entry[I | O]] = {
+  def fromOperations[T](history: List[Operation[T]]): List[Entry[T]] = {
     history.zipWithIndex.flatMap { (operation, index) =>
-      List[Entry[I | O]](
+      List[Entry[T]](
         Entry(EntryKind.Call,   operation.input,  operation.invocation, index, operation.clientId),
         Entry(EntryKind.Return, operation.output, operation.response,   index, operation.clientId)
       )
