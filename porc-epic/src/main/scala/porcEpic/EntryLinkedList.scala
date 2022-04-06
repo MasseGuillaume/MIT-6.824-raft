@@ -22,7 +22,7 @@ object EntryLinkedList {
 
           case c: Entry.Call[_, _] =>
             new DoubleLinkedList[EntryNode[S, T]](
-              EntryNode.Call(c.id, c.value, matches.getOrElse(c.id, null))
+              EntryNode.Call(c.id, c.value, matches.getOrElse(c.id, throw new Exception("cannot find match")))
             )
         }
 
@@ -80,7 +80,9 @@ class DoubleLinkedList[T](
     }
 
     def show(that: DoubleLinkedList[T]): Unit = {
-      builder ++= s"  ${that.elem.toString},\n"
+      if (that != null) {
+        builder ++= s"  ${that.elem.toString},\n"
+      }
     }
 
     var current = this
@@ -104,7 +106,7 @@ sealed trait EntryNode[S, T] {
 object EntryNode {
   case class Call[S, T](id: Int, value: T, matches: EntryLinkedList[S, T]) extends EntryNode[S, T] {
     override def toString: String = {
-      s"Call($id, $value, ${matches.elem.id})"
+      s"Call($id, $value)"
     }
   }
   case class Return[S, T](id: Int, value: S) extends EntryNode[S, T] {
@@ -120,7 +122,6 @@ extension [S, T](list: DoubleLinkedList[EntryNode[S, T]]) {
     list.elem match {
       case c: EntryNode.Call[_, _] =>
         import list._
-
         prev.next = next
         next.prev = prev
         c.matches.prev.next = c.matches.next

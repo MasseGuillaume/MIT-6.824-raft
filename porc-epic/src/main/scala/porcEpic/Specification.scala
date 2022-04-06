@@ -51,27 +51,32 @@ trait Eq[T]:
 extension [T](a: T)(using e: Eq[T])
   def equal(b: T): Boolean = e.equal(a, b)
 
-trait Model[S, T](using Eq[S], Show[S]){
+trait Specification[S, T](using Eq[S], Show[S]){
   def partitionOperations: List[Operation[S, T]] => List[List[Operation[S, T]]] =
-    noPartitionOperation
+    withoutPartitioningOperations
 
   def partitionEntries: List[Entry[S, T]] => List[List[Entry[S, T]]] =
-    noPartitionEntries
+    withoutPartitioningEntries
 
-  def initial: S
+  def initialState: S
 
-  def step(state: S, input: T, output: S): (Boolean, S)
+  def apply(state: S, input: T, output: S): (Boolean, S)
 
   def describeOperation(input: T, output: S): String
 }
 
-def noPartitionOperation[S, T](history: List[Operation[S, T]]): List[List[Operation[S, T]]] = 
+def withoutPartitioningOperations[S, T](history: List[Operation[S, T]]): List[List[Operation[S, T]]] = 
   List(history)
 
-def noPartitionEntries[S, T](history: List[Entry[S, T]]): List[List[Entry[S, T]]] = 
+def withoutPartitioningEntries[S, T](history: List[Entry[S, T]]): List[List[Entry[S, T]]] = 
   List(history)
 
 enum CheckResult:
   case Unknown
   case Ok
   case Illgal
+
+case class LinearizationInfo[S, T](
+  history: List[List[Entry[S, T]]],
+  partialLinearizations: List[List[List[Int]]]
+)

@@ -7,18 +7,30 @@ enum Verbosity:
   case Debug
   case Error
 
-extension [S, T](model: Model[S, T])(using eq: Eq[S]) {
+
+object Stack {
+  def empty[T]: Stack[T] = new Stack[T](Nil)
+}
+class Stack[T](var xs: List[T]) {
+  def push(x: T): Unit = xs = x :: xs
+  def pop: T = {
+    val t = xs.head
+    xs = xs.tail
+    t
+  }
+  def length: Int = xs.length
+  def foreach(f: T => Unit): Unit = xs.foreach(f)
+  def zipWithIndex: List[(T, Int)] = xs.zipWithIndex
+}
+
+extension [S, T](specification: Specification[S, T])(using eq: Eq[S]) {
 
   def checkOperations(
     history: List[Operation[S, T]],
     timeout: Option[Duration] = None,
     verbosity: Verbosity = Verbosity.Error
   ): (CheckResult, LinearizationInfo[S, T]) = {
-    val partitions =
-      model.partitionOperations(history).map(
-        Entry.fromOperations
-      )
-
+    val partitions = specification.partitionOperations(history).map(Entry.fromOperations)
     checkParallel(partitions, timeout, verbosity)
   }
 
@@ -27,7 +39,7 @@ extension [S, T](model: Model[S, T])(using eq: Eq[S]) {
     timeout: Option[Duration] = None,
     verbosity: Verbosity = Verbosity.Error
   ): (CheckResult, LinearizationInfo[S, T]) = {
-    val partitions =  model.partitionEntries(history).map(renumber)
+    val partitions = specification.partitionEntries(history).map(renumber)
     checkParallel(partitions, timeout, verbosity)
   }
 
@@ -42,19 +54,26 @@ extension [S, T](model: Model[S, T])(using eq: Eq[S]) {
       if (ok) CheckResult.Ok
       else CheckResult.Illgal
 
-    (result, null)
+    // TODO
+    val info = LinearizationInfo[S, T](
+      history = Nil,
+      partialLinearizations = Nil
+    )
+
+    (result, info)
   }
 
   private def checkSingle(history: List[Entry[S, T]]): (Boolean, Array[Array[Int]]) = {
     case class CacheEntry(linearized: MBitset, state: S)
-    case class CallEntry[T](entry: EntryLinkedList[S, T], state: S)
+    case class CallEntry(entry: EntryLinkedList[S, T], state: S)
 
     extension (bitset: MBitset) {
       def set(v: Int): MBitset = bitset += v
       def clear(v: Int): MBitset = bitset -= v
     }
-    
+
     var entry = EntryLinkedList(history)
+
     val n = entry.length / 2
     val linearized = MBitset.fromBitMaskNoCopy(Array.ofDim(n))
     val cache = MMap.empty[Int, List[CacheEntry]].withDefaultValue(Nil)
@@ -66,18 +85,18 @@ extension [S, T](model: Model[S, T])(using eq: Eq[S]) {
       )
     }
 
-    var calls = List.empty[CallEntry[T]]
+    var calls = Stack.empty[CallEntry]
     val longest = Array.ofDim[Array[Int]](n)
-    var state = model.initial
-       
-    val headEntry = entry.insertBefore(
+    var state = specification.initialState
+
+    val buggy = 
       DoubleLinkedList[EntryNode[S, T]](
         EntryNode.Return[S, T](
           value = null.asInstanceOf[S],
           id = -1
         )
       )
-    )
+    val headEntry = buggy.insertBefore(entry)
 
     while (headEntry.next != null) {
       entry.elem match {
@@ -88,14 +107,15 @@ extension [S, T](model: Model[S, T])(using eq: Eq[S]) {
               case _: EntryNode.Call[_, _]   => throw new Exception("call matching should be a return")
             }
 
-          val (ok, newState) = model.step(state, node.value, matching.value)
-          if (ok) {
+          val (isLinearizable, newState) = specification.apply(state, node.value, matching.value)
+
+          if (isLinearizable) {
             val newLinearized = linearized.clone().set(node.id)
             val newCacheEntry = CacheEntry(newLinearized, newState)
             if (!cacheContains(newCacheEntry)) {
               val hash = newLinearized.hashCode
               cache(hash) = newCacheEntry :: cache(hash)
-              calls = CallEntry(entry, state) :: calls
+              calls.push(CallEntry(entry, state))
               state = newState
               linearized.set(node.id)
               entry.lift()
@@ -113,23 +133,23 @@ extension [S, T](model: Model[S, T])(using eq: Eq[S]) {
             return (false, longest)
           }
           var seq: Array[Int] = null
-          calls.reverse.foreach { v =>
+          calls.foreach { v =>
             if (longest(v.entry.elem.id) == null || 
                 callsLength > longest(v.entry.elem.id).length) {
               if (seq == null) {
                 seq = Array.ofDim(callsLength)
-                calls.reverse.zipWithIndex.foreach{(c, i) =>
+                calls.zipWithIndex.foreach{(c, i) =>
                   seq(i) = v.entry.elem.id
                 }
               }
               longest(v.entry.elem.id) = seq
             }
           }
-          val callTop = calls.head
+          val callTop = calls.pop
           entry = callTop.entry
-          val state = callTop.state
+          state = callTop.state
           linearized.clear(entry.elem.id)
-          calls = calls.tail
+          
           entry.unlift()
           entry = entry.next
       }
@@ -179,8 +199,3 @@ given EntryOrderingByTime[S, T]: Ordering[Entry[S, T]] =
       }
     )
   )
-
-case class LinearizationInfo[S, T](
-  history: List[List[Entry[S, T]]],
-  partialLinearizations: List[List[List[Int]]]
-)

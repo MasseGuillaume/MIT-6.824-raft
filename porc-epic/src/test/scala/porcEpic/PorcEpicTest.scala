@@ -20,11 +20,11 @@ object PorcEpicTest extends DefaultRunnableSpec {
   given Show[Int] with
     def show(a: Int): String = a.toString
 
-  val model = new Model[Int, Input]{
+  val specification = new Specification[Int, Input]{
 
-    def initial: Int = 0
+    def initialState: Int = 0
 
-    def step(state: Int, input: Input, output: Int): (Boolean, Int) = {
+    def apply(state: Int, input: Input, output: Int): (Boolean, Int) = {
       input match {
         case Put(value) => (true, value)
         case Get => (output == state, state)
@@ -40,12 +40,40 @@ object PorcEpicTest extends DefaultRunnableSpec {
   }
 
   def spec = suite("PorcEpicTest")(
-    test("model 1") {
+    test("specification 1") {
+      /*    0        25  30      50     60  75        100 |
+        C0: |<--------------- Put(100) --------------->|  |
+        C1:          |<---------Get--------->|            |
+        C2:               |<----Get----->|                |
+      */
       val ops = List(
-        Operation(clientId = cid(0), input = Put(100), invocation = t(0), output = 0, response = t(1)),
-        // Operation(cid(0), )
+        Operation(clientId = cid(0), input = Put(100), invocation =  t(0), output =   0, response = t(100)),
+        Operation(clientId = cid(1), input = Get,      invocation = t(25), output = 100, response = t(75)),
+        Operation(clientId = cid(2), input = Get,      invocation = t(30), output =   0, response = t(60)),
       )
-      assert(1)(equalTo(1))
+      val (result, _) = specification.checkOperations(ops)
+      assert(result)(
+        equalTo(CheckResult.Ok)
+      )
+    },
+    test("specification 2") {
+      val ops = List(
+        Operation(clientId = cid(0), input = Get, invocation = t(0), output = 0, response = t(1)),
+      )
+      val (result, _) = specification.checkOperations(ops)
+      assert(result)(
+        equalTo(CheckResult.Ok)
+      )
+    },
+    test("specification 3") {
+      val ops = List(
+        Operation(clientId = cid(0), input = Put(1), invocation = t(0), output = 0, response = t(3)),
+        Operation(clientId = cid(0), input = Get,    invocation = t(0), output = 1, response = t(3)),
+      )
+      val (result, _) = specification.checkOperations(ops)
+      assert(result)(
+        equalTo(CheckResult.Ok)
+      )
     }
   )
 }
