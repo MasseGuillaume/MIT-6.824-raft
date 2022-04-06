@@ -1,4 +1,4 @@
-ThisBuild / scalaVersion := "3.1.1"
+ThisBuild / scalaVersion := "3.1.0"
 
 lazy val zioSettings: Seq[Def.Setting[_]] = Seq(
   libraryDependencies ++= {

@@ -2,23 +2,28 @@ package porcEpic
 
 import scala.collection.mutable.StringBuilder
 
-type EntryLinkedList[T] = DoubleLinkedList[EntryNode[T]]
+type EntryLinkedList[S, T] = DoubleLinkedList[EntryNode[S, T]]
 
 object EntryLinkedList {
-  def apply[T](entries: List[Entry[T]]): DoubleLinkedList[EntryNode[T]] = {
-    var root: DoubleLinkedList[EntryNode[T]] = null
-    val matches = collection.mutable.Map.empty[Int, DoubleLinkedList[EntryNode[T]]]
+  def apply[S, T](entries: List[Entry[S, T]]): EntryLinkedList[S, T] = {
+    var root: DoubleLinkedList[EntryNode[S, T]] = null
+    val matches = collection.mutable.Map.empty[Int, EntryLinkedList[S, T]]
 
     entries.reverse.foreach{ elem => 
-      val entry = 
-        elem.kind match {
-          case EntryKind.Return => 
-            val entry = DoubleLinkedList(EntryNode(elem.value, elem.id))
-            matches(elem.id) = entry
+      val entry =
+        elem match {
+          case r: Entry.Return[_, _] =>
+            val entry = 
+              new DoubleLinkedList[EntryNode[S, T]](
+                EntryNode.Return[S, T](r.id, r.value)
+              )
+            matches(r.id) = entry
             entry
-            
-          case EntryKind.Call =>
-            DoubleLinkedList(EntryNode(elem.value, elem.id, matches.getOrElse(elem.id, null)))
+
+          case c: Entry.Call[_, _] =>
+            new DoubleLinkedList[EntryNode[S, T]](
+              EntryNode.Call(c.id, c.value, matches.getOrElse(c.id, null))
+            )
         }
 
       entry.insertBefore(root)
@@ -92,48 +97,55 @@ class DoubleLinkedList[T](
 /**
  * @param matches:  if it's a call it points to the return entry
  */
-case class EntryNode[T](
-  value: T,
-  id: Int,
-  matches: DoubleLinkedList[EntryNode[T]] = null
-) {
-  override def toString: String = {
-    val builder = new StringBuilder()
-    builder ++= s"  ($id)["
-    builder ++= "value = "
-    if (value != null) {
-      builder ++= value.toString
-    } else {
-      builder ++= "∅"
-    }
-    if (matches != null) {
-      builder ++= ", matches = " + matches.elem.id.toString
-    }
-    builder ++= "]"
 
-    builder.toString
+sealed trait EntryNode[S, T] {
+  val id: Int
+}
+object EntryNode {
+  case class Call[S, T](id: Int, value: T, matches: EntryLinkedList[S, T]) extends EntryNode[S, T] {
+    override def toString: String = {
+      s"Call($id, $value, ${matches.elem.id})"
+    }
+  }
+  case class Return[S, T](id: Int, value: S) extends EntryNode[S, T] {
+    override def toString: String = {
+      s"Return($id, $value)"
+    }
   }
 }
 
-extension [T](list: DoubleLinkedList[EntryNode[T]]) {
+extension [S, T](list: DoubleLinkedList[EntryNode[S, T]]) {
 
   def lift(): Unit = {
-    import list._
-    prev.next = next
-    next.prev = prev
-    elem.matches.prev.next = elem.matches.next
-    if (elem.matches.next != null) {
-      elem.matches.next.prev = elem.matches.prev
+    list.elem match {
+      case c: EntryNode.Call[_, _] =>
+        import list._
+
+        prev.next = next
+        next.prev = prev
+        c.matches.prev.next = c.matches.next
+        if (c.matches.next != null) {
+          c.matches.next.prev = c.matches.prev
+        }
+
+      case _ => throw new Exception("cannot lift on Return Entry")
     }
+
   }
 
   def unlift(): Unit = {
-    import list._
-    elem.matches.prev.next = elem.matches
-    if (elem.matches.next != null) {
-      elem.matches.next.prev = elem.matches
+    list.elem match {
+      case c: EntryNode.Call[_, _] =>
+        import list._
+
+        c.matches.prev.next = c.matches
+        if (c.matches.next != null) {
+          c.matches.next.prev = c.matches
+        }
+        prev.next = list
+        next.prev = list
+
+      case _ => throw new Exception("cannot unlift on Return Entry")
     }
-    prev.next = list
-    next.prev = list
   }
 }

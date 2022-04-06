@@ -4,6 +4,8 @@ import zio._
 import zio.test._
 import zio.test.Assertion._
 
+import porcEpic.{fromLong => t}
+
 object PorcEpicTest extends DefaultRunnableSpec {
 
   enum Input:
@@ -11,12 +13,18 @@ object PorcEpicTest extends DefaultRunnableSpec {
     case Get extends Input
 
   import Input._
-  
-  val model = new Model[Int, RegisterInput]{
+
+  given Eq[Int] with
+    def equal(a: Int, b: Int): Boolean = a == b
+
+  given Show[Int] with
+    def show(a: Int): String = a.toString
+
+  val model = new Model[Int, Input]{
 
     def initial: Int = 0
 
-    def step(state: Int, input: Input, output: Int): (Boolean, S) = {
+    def step(state: Int, input: Input, output: Int): (Boolean, Int) = {
       input match {
         case Put(value) => (true, value)
         case Get => (output == state, state)
@@ -35,7 +43,7 @@ object PorcEpicTest extends DefaultRunnableSpec {
     test("model 1") {
       val ops = List(
         Operation(clientId = cid(0), input = Put(100), invocation = t(0), output = 0, response = t(1)),
-        Operation(cid(0), )
+        // Operation(cid(0), )
       )
       assert(1)(equalTo(1))
     }

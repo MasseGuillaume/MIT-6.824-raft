@@ -21,20 +21,20 @@ object EntryLinkedListTest extends DefaultRunnableSpec {
     test("EntryLinkedList")(
       assert(EntryLinkedList(entries).toString)(equalTo(
         """|DoubleLinkedList(
-           |    (0)[value = (W,0), matches = 0],
-           |    (0)[value = 0],
-           |    (1)[value = (W,1), matches = 1],
-           |    (2)[value = (R,1), matches = 2],
-           |    (3)[value = (R,0), matches = 3],
-           |    (3)[value = 1],
-           |    (2)[value = 1],
-           |    (1)[value = 1],
+           |  Call(0, (W,0), 0),
+           |  Return(0, 0),
+           |  Call(1, (W,1), 1),
+           |  Call(2, (R,1), 2),
+           |  Call(3, (R,0), 3),
+           |  Return(3, 1),
+           |  Return(2, 1),
+           |  Return(1, 1),
            |)""".stripMargin
       ))
     ),
     test("length")(
       assert(EntryLinkedList(entries).length)(equalTo(8))
-    ),    
+    ),
     // test("lift")(
     //   assert(1)(equalTo(1))
     // ),

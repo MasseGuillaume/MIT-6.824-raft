@@ -7,27 +7,43 @@ def toLong(time: Time): Long = time
 opaque type ClientId = Int
 def cid(value: Int): ClientId = value
 
-case class Operation[T](
+case class Operation[S, T](
   clientId: ClientId,
   input: T,
   invocation: Time,
-  output: T,
+  output: S,
   response: Time
 )
 
-enum EventKind:
-  case Call
-  case Return
+sealed trait Entry[S, T] {
+  val time: Time
+  val id: Int
+  val clientId: ClientId
 
-case class Event[T](
-  clientId: ClientId,
-  kind: EventKind,
-  value: T,
-  id: Int
-)
+  def withId(id0: Int): Entry[S, T] = {
+    this match {
+      case c: Entry.Call[_, _]   => c.copy(id = id0)
+      case r: Entry.Return[_, _] => r.copy(id = id0)
+    }
+  }
+}
+
+object Entry {
+  case class   Call[S, T](value: T, time: Time, id: Int, clientId: ClientId) extends Entry[S, T]
+  case class Return[S, T](value: S, time: Time, id: Int, clientId: ClientId) extends Entry[S, T]
+
+  def fromOperations[S, T](history: List[Operation[S, T]]): List[Entry[S, T]] = {
+    history.zipWithIndex.flatMap ( (operation, index) =>
+      List[Entry[S, T]](
+          Call(operation.input,  operation.invocation, index, operation.clientId),
+        Return(operation.output, operation.response,   index, operation.clientId)
+      )
+    ).sorted
+  }
+}
 
 trait Show[T]:
-  def show: String
+  def show(a: T): String
 
 trait Eq[T]:
   def equal(a: T, b: T): Boolean
@@ -35,12 +51,12 @@ trait Eq[T]:
 extension [T](a: T)(using e: Eq[T])
   def equal(b: T): Boolean = e.equal(a, b)
 
-class Model[S, T](using Eq[S], Show[T]){
-  def partitionOperations: List[Operation[T]] => List[List[Operation[T]]] =
+trait Model[S, T](using Eq[S], Show[S]){
+  def partitionOperations: List[Operation[S, T]] => List[List[Operation[S, T]]] =
     noPartitionOperation
 
-  def partitionEvents: List[Event[T]] => List[List[Event[T]]] =
-    noPartitionEvents
+  def partitionEntries: List[Entry[S, T]] => List[List[Entry[S, T]]] =
+    noPartitionEntries
 
   def initial: S
 
@@ -49,10 +65,10 @@ class Model[S, T](using Eq[S], Show[T]){
   def describeOperation(input: T, output: S): String
 }
 
-def noPartitionOperation[T](history: List[Operation[T]]): List[List[Operation[T]]] = 
+def noPartitionOperation[S, T](history: List[Operation[S, T]]): List[List[Operation[S, T]]] = 
   List(history)
 
-def noPartitionEvents[T](history: List[Event[T]]): List[List[Event[T]]] = 
+def noPartitionEntries[S, T](history: List[Entry[S, T]]): List[List[Entry[S, T]]] = 
   List(history)
 
 enum CheckResult:
